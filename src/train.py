@@ -53,9 +53,7 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict):
         num_classes = 8
         sup_con_loss = SupConLoss(
             temperature=options.temperature,
-            contrast_mode="multi_label",
-            base_temperature=options.temperature,
-            num_classes=8,
+            base_temperature=options.temperature
         )
 
     elif options.dataset == "wm811k":
@@ -63,9 +61,7 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict):
         num_classes = 9
         sup_con_loss = SupConLoss(
             temperature=options.temperature,
-            contrast_mode="multi_class",
-            base_temperature=options.temperature,
-            num_classes=9,
+            base_temperature=options.temperature
         )
 
     model = SupConVGG(name=model_name, head=options.head, feat_dim=128).to(device)

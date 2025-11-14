@@ -63,11 +63,12 @@ def evaluation(y_gt, y_hat, label_counts):
 
 
 def parse_result(options, result_dict, train_infer: str):
-
-    model_name = options.model + options.model_config
-
+    
+    # 使用'vgg'作为默认模型名称，因为model_config选项对应VGG深度
+    model_name = "vgg" + options.model_config
+    
     result_path = pathlib.Path("results")
-
+    
     result_dir = (
         result_path
         / str(options.dataset)
@@ -76,12 +77,12 @@ def parse_result(options, result_dict, train_infer: str):
         / train_infer
         / str(options.exp_id)
     )
-
+    
     if not result_dir.exists():
         result_dir.mkdir(parents=True, exist_ok=False)
-
+    
     result_json = result_dir / "results.json"
-
+    
     with open(result_json, "w") as fjson:
         json.dump(result_dict, fjson)
     fjson.close()
