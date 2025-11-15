@@ -30,6 +30,7 @@ def test_supcon(options, test_loader, label_counts, augmentation: dict):
         / (model_name + options.head)  # 模型名称+投影头类型
         / str(options.set_size)   # 训练集大小
         / str(options.gamma)      # 损失平衡参数
+        / str(options.adaptive_temperature)  # 自适应温度参数
     )
     
     # 设置运行设备(GPU优先)

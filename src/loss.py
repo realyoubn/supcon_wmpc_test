@@ -8,11 +8,13 @@ class SupConLoss(nn.Module):
         self,
         temperature=0.1,
         base_temperature=0.1,
+        adaptive_temperature=False,
     ):
         super(SupConLoss, self).__init__()
         self.temperature = temperature
         self.base_temperature = base_temperature
-
+        self.adaptive_temperature = adaptive_temperature
+        self.epoch = 0 
     def forward(self, features, labels=None, mask=None):
         device = torch.device("cuda") if features.is_cuda else torch.device("cpu")
 
@@ -26,8 +28,11 @@ class SupConLoss(nn.Module):
 
         batch_size = features.shape[0]
 
-        if labels.shape[1] == 1:
+        # 修复：处理 1D 和 2D 标签
+        if len(labels.shape) == 1:  # 1D 标签 (类别索引)
             labels = F.one_hot(labels, num_classes=9).float()
+        elif labels.shape[1] == 1:  # 2D 标签但只有一个通道
+            labels = F.one_hot(labels.squeeze(1), num_classes=9).float()
 
         # Proposed method - weighting based on jaccard similarity
         ones = torch.ones_like(labels)
@@ -43,10 +48,21 @@ class SupConLoss(nn.Module):
 
         anchor_feature = contrast_feature
         anchor_count = contrast_count
+        # 新增：基于批内相似度动态调整温度
+        if self.adaptive_temperature:
+            with torch.no_grad():  # 温度调整不参与梯度计算
+                # 计算所有样本对的相似度点积的中位数
+                sim_matrix = torch.matmul(anchor_feature, contrast_feature.T)
+                temp = torch.median(sim_matrix)  # 批内相似度中位数
+                # 动态调整温度：相似度高则升温（降低区分度），相似度低则降温（增强区分度）
+                adaptive_temp = max(self.temperature * (1 + temp), self.temperature * 0.5)
+            current_temp = adaptive_temp
+        else:
+            current_temp = self.temperature  # 使用固定温度
 
-        # compute logits
+        # 用调整后的温度计算点积
         anchor_dot_contrast = torch.div(
-            torch.matmul(anchor_feature, contrast_feature.T), self.temperature
+            torch.matmul(anchor_feature, contrast_feature.T), current_temp
         )
         # for numerical stability
         logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
@@ -69,8 +85,8 @@ class SupConLoss(nn.Module):
         # compute mean of log-likelihood over positive
         mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
 
-        # loss
-        loss = -(self.temperature / self.base_temperature) * mean_log_prob_pos
+        loss = -(current_temp / self.base_temperature) * mean_log_prob_pos
+        
         loss = loss.view(anchor_count, batch_size)
 
         return loss.mean()

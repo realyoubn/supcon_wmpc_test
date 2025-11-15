@@ -22,17 +22,19 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict):
         log_path
         / options.dataset
         / str(options.exp_id)
-        / (model_name + options.head)
+        / (model_name + options.head)  
         / str(options.set_size)
         / str(options.gamma)
+        / str(options.adaptive_temperature)
     )
     pt_dir = (
         pt_path
         / options.dataset
         / str(options.exp_id)
-        / (model_name + options.head)
+        / (model_name + options.head)  
         / str(options.set_size)
         / str(options.gamma)
+        / str(options.adaptive_temperature)
     )
 
     if not logdir.exists():
@@ -53,7 +55,8 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict):
         num_classes = 8
         sup_con_loss = SupConLoss(
             temperature=options.temperature,
-            base_temperature=options.temperature
+            base_temperature=options.temperature,
+            adaptive_temperature=options.adaptive_temperature,
         )
 
     elif options.dataset == "wm811k":
@@ -61,7 +64,8 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict):
         num_classes = 9
         sup_con_loss = SupConLoss(
             temperature=options.temperature,
-            base_temperature=options.temperature
+            base_temperature=options.temperature,
+            adaptive_temperature=options.adaptive_temperature,
         )
 
     model = SupConVGG(name=model_name, head=options.head, feat_dim=128).to(device)

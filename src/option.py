@@ -23,6 +23,12 @@ def parse_options():
     parser.add_argument("--patience", type=int, default=50, help="epochs")
 
     parser.add_argument(
+        "--adaptive_temperature",
+        action="store_true",
+        help="use adaptive temperature for contrastive loss",
+    )
+                        
+    parser.add_argument(
         "--model_config",
         type=str,
         default="16",
