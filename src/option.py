@@ -27,7 +27,7 @@ def parse_options():
         action="store_true",
         help="use adaptive temperature for contrastive loss",
     )
-                        
+                    
     parser.add_argument(
         "--model_config",
         type=str,
@@ -57,6 +57,41 @@ def parse_options():
     )
 
     parser.add_argument("--exp_id", type=int, help="experiment id")
+    
+    # 新增：难例挖掘参数
+    parser.add_argument(
+        "--hard_negative_mining",
+        action="store_true",
+        help="enable hard negative mining",
+    )
+    
+    parser.add_argument(
+        "--negative_ratio",
+        type=float,
+        default=0.5,
+        help="ratio of hard negative samples to consider",
+    )
+    
+    # 新增：中心对比损失参数
+    parser.add_argument(
+        "--use_center_loss",
+        action="store_true",
+        help="enable center loss",
+    )
+    
+    parser.add_argument(
+        "--center_weight",
+        type=float,
+        default=0.3,
+        help="weight for center loss",
+    )
+    
+    # 新增：类别权重控制参数
+    parser.add_argument(
+        "--use_class_weights",
+        action="store_true",
+        help="use class weights for cross entropy loss",
+    )
 
     opt = parser.parse_args()
 

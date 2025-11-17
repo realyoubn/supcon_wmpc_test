@@ -67,25 +67,44 @@ def parse_result(options, result_dict, train_infer: str):
     # 使用'vgg'作为默认模型名称，因为model_config选项对应VGG深度
     model_name = "vgg" + options.model_config
     
+    # 修改结果保存路径，与pt_dir格式保持一致
     result_path = pathlib.Path("results")
     
     result_dir = (
         result_path
-        / str(options.dataset)
-        / (model_name)
-        / str(options.set_size)
-        / train_infer
+        / options.dataset
         / str(options.exp_id)
+        / (model_name + options.head)  # 模型架构加头类型
+        / str(options.set_size)
+        / str(options.gamma)
+        / f"adttem_{options.adaptive_temperature}"
+        / f"hnm_{options.hard_negative_mining}"
+        / f"center_{options.use_center_loss}"
+        / f"weights_{options.use_class_weights}"
     )
     
     if not result_dir.exists():
         result_dir.mkdir(parents=True, exist_ok=False)
     
-    result_json = result_dir / "results.json"
+    # 文件名中包含train_infer标识，区分训练和推理结果
+    result_json = result_dir / f"results_{train_infer}.json"
+    
+    # 确保结果可序列化
+    serializable_results = {}
+    for key, value in result_dict.items():
+        if isinstance(value, list) and value and isinstance(value[0], np.ndarray):
+            # 处理numpy数组
+            serializable_results[key] = [v.tolist() for v in value]
+        elif isinstance(value, np.ndarray):
+            # 单个numpy数组
+            serializable_results[key] = value.tolist()
+        else:
+            serializable_results[key] = value
     
     with open(result_json, "w") as fjson:
-        json.dump(result_dict, fjson)
-    fjson.close()
+        json.dump(serializable_results, fjson, indent=4)
+    
+    print(f"Results saved to {result_json}")
 
 
 def calculate_metrics(options, pred, target, label_index=None):

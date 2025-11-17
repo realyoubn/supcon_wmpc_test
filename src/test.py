@@ -25,12 +25,15 @@ def test_supcon(options, test_loader, label_counts, augmentation: dict):
     # 构建完整的模型权重路径，根据数据集、实验ID、模型配置等动态生成
     pt_dir = (
         pt_path
-        / options.dataset         # 数据集名称(mixedwm38或wm811k)
-        / str(options.exp_id)     # 实验ID
-        / (model_name + options.head)  # 模型名称+投影头类型
-        / str(options.set_size)   # 训练集大小
-        / str(options.gamma)      # 损失平衡参数
-        / str(options.adaptive_temperature)  # 自适应温度参数
+        / options.dataset
+        / str(options.exp_id)
+        / (model_name + options.head)  # 模型架构加头类型
+        / str(options.set_size)
+        / str(options.gamma)
+        / f"adttem_{options.adaptive_temperature}"
+        / f"hnm_{options.hard_negative_mining}"
+        / f"center_{options.use_center_loss}"
+        / f"weights_{options.use_class_weights}"
     )
     
     # 设置运行设备(GPU优先)

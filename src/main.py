@@ -67,7 +67,7 @@ if __name__ == "__main__":
         )
 
     supcon_train_results = train_supcon(
-        options, train_loader, valid_loader, augmentations
+        options, train_loader, valid_loader, augmentations, label_counts
     )
     parse_result(options, supcon_train_results, "train")
 
