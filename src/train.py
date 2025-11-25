@@ -7,7 +7,7 @@ import torch.optim as optim
 from loss import SupConLoss
 
 from models.vgg import SupConVGG, VGGLinearClassifier
-from utils.tools import EarlyStopping, generatePositive, label_hard_acc
+from utils.tools import EarlyStopping, generatePositive, label_hard_acc, evaluation
 
 
 # proposed method
@@ -23,7 +23,7 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
         label_counts: 训练集中各类别的样本数量统计
     
     Returns:
-        dict: 包含训练和验证的准确率和损失历史记录
+        dict: 包含训练和验证的准确率和损失历史记录以及详细评估指标
     """
     
     # 构建模型名称，例如vgg16
@@ -43,6 +43,7 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
         / str(options.gamma)
         / f"adttem_{options.adaptive_temperature}"
         / f"hnm_{options.hard_negative_mining}"
+        / str(options.negative_ratio)
         / f"center_{options.use_center_loss}"
         / f"weights_{options.use_class_weights}"
     )
@@ -57,6 +58,7 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
         / str(options.gamma)
         / f"adttem_{options.adaptive_temperature}"
         / f"hnm_{options.hard_negative_mining}"
+        / str(options.negative_ratio)
         / f"center_{options.use_center_loss}"
         / f"weights_{options.use_class_weights}"
     )
@@ -151,6 +153,8 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
     train_accs = []
     valid_losses = []
     valid_accs = []
+    # 新增：用于存储评估指标的列表
+    valid_metrics = []
     
     c = options.gamma  # 对比损失和分类损失之间的平衡超参数
     
@@ -234,6 +238,10 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
         model.eval()
         classifier.eval()
         
+        # 新增：收集所有预测和真实标签用于evaluation函数
+        all_preds = []
+        all_labels = []
+        
         num_step = 0
         with torch.no_grad():  # 验证阶段不需要计算梯度
             for idx, (image, labels) in enumerate(valid_loader, start=1):
@@ -249,11 +257,17 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
                 
                 # 根据数据集类型计算准确率
                 if options.dataset == "mixedwm38":
+                    # 多标签分类：使用sigmoid和0.5阈值
                     probs = logits.sigmoid()
                     predicted = (probs > 0.5).float()
                 else:
+                    # 单标签分类：使用softmax和argmax
                     probs = logits.softmax(dim=1)
                     predicted = probs.argmax(1)
+                
+                # 新增：收集预测和真实标签
+                all_preds.append(predicted)
+                all_labels.append(labels)
                 
                 # 累加准确率和损失
                 valid_acc += label_hard_acc(predicted, labels)
@@ -265,6 +279,37 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
         valid_acc /= num_step
         valid_losses.append(valid_loss)
         valid_accs.append(valid_acc)
+        
+        # 新增：使用evaluation函数计算详细评估指标
+        if options.dataset != "mixedwm38" and label_counts is not None:
+            # 仅在单标签分类且有label_counts时使用evaluation函数
+            # 合并所有批次的预测和标签
+            all_preds_tensor = torch.cat(all_preds, dim=0)
+            all_labels_tensor = torch.cat(all_labels, dim=0)
+            
+            # 计算评估指标
+            eval_metrics = evaluation(all_labels_tensor, all_preds_tensor, label_counts)
+            valid_metrics.append(eval_metrics)
+            
+            # 记录到TensorBoard
+            writer.add_scalar("Metrics/macro_f1", eval_metrics['macro_f1'], epoch)
+            writer.add_scalar("Metrics/micro_f1", eval_metrics['micro_f1'], epoch)
+            writer.add_scalar("Metrics/weighted_f1", eval_metrics['weighted_f1'], epoch)
+            writer.add_scalar("Metrics/precision", eval_metrics['precision'], epoch)
+            writer.add_scalar("Metrics/recall", eval_metrics['recall'], epoch)
+            
+            # 打印详细评估指标
+            print(f"Epoch {epoch} Validation Metrics:")
+            print(f"  Macro F1: {eval_metrics['macro_f1']:.4f}")
+            print(f"  Micro F1: {eval_metrics['micro_f1']:.4f}")
+            print(f"  Weighted F1: {eval_metrics['weighted_f1']:.4f}")
+            print(f"  Precision: {eval_metrics['precision']:.4f}")
+            print(f"  Recall: {eval_metrics['recall']:.4f}")
+            
+            # 打印最难分类的类别
+            print("  Hardest classes (lowest F1):")
+            for label, f1 in eval_metrics['hard_classes']:
+                print(f"    Class {label}: F1 = {f1:.4f}")
         
         # 记录到TensorBoard
         writer.add_scalar("Loss/valid", valid_loss, epoch)
@@ -296,6 +341,7 @@ def train_supcon(options, train_loader, valid_loader, augmentation: dict, label_
         "train_losses": train_losses,
         "valid_accs": valid_accs,
         "valid_losses": valid_losses,
+        "valid_metrics": valid_metrics  # 新增：添加评估指标
     }
     
     return results

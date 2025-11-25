@@ -4,6 +4,9 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
     accuracy_score,
+    precision_score,
+    recall_score,
+    classification_report
 )
 import json
 
@@ -58,8 +61,37 @@ def evaluation(y_gt, y_hat, label_counts):
 
     labels = label_counts.index
     cfm = confusion_matrix(y_gt, y_hat)
-    macro_f1 = f1_score(y_gt, y_hat, labels=labels, average="macro")
-    return macro_f1, cfm
+    
+    # 计算多种评估指标 - 添加zero_division=0参数
+    macro_f1 = f1_score(y_gt, y_hat, labels=labels, average="macro", zero_division=0)
+    micro_f1 = f1_score(y_gt, y_hat, labels=labels, average="micro", zero_division=0)
+    weighted_f1 = f1_score(y_gt, y_hat, labels=labels, average="weighted", zero_division=0)
+    accuracy = accuracy_score(y_gt, y_hat)
+    precision = precision_score(y_gt, y_hat, labels=labels, average="macro", zero_division=0)
+    recall = recall_score(y_gt, y_hat, labels=labels, average="macro", zero_division=0)
+    
+    # 获取详细的分类报告
+    class_report = classification_report(y_gt, y_hat, labels=labels, output_dict=True, zero_division=0)
+    
+    # 找出最难分类的类别（F1分数最低的）
+    class_f1_scores = []
+    for label in labels:
+        if str(label) in class_report:
+            class_f1_scores.append((label, class_report[str(label)]['f1-score']))
+    
+    hard_classes = sorted(class_f1_scores, key=lambda x: x[1])[:3]  # 取F1最低的3个类别
+    
+    return {
+        'macro_f1': macro_f1,
+        'micro_f1': micro_f1,
+        'weighted_f1': weighted_f1,
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'confusion_matrix': cfm,
+        'class_report': class_report,
+        'hard_classes': hard_classes
+    }
 
 
 def parse_result(options, result_dict, train_infer: str):
@@ -79,6 +111,7 @@ def parse_result(options, result_dict, train_infer: str):
         / str(options.gamma)
         / f"adttem_{options.adaptive_temperature}"
         / f"hnm_{options.hard_negative_mining}"
+        / str(options.negative_ratio)
         / f"center_{options.use_center_loss}"
         / f"weights_{options.use_class_weights}"
     )
@@ -89,17 +122,21 @@ def parse_result(options, result_dict, train_infer: str):
     # 文件名中包含train_infer标识，区分训练和推理结果
     result_json = result_dir / f"results_{train_infer}.json"
     
-    # 确保结果可序列化
-    serializable_results = {}
-    for key, value in result_dict.items():
-        if isinstance(value, list) and value and isinstance(value[0], np.ndarray):
-            # 处理numpy数组
-            serializable_results[key] = [v.tolist() for v in value]
-        elif isinstance(value, np.ndarray):
-            # 单个numpy数组
-            serializable_results[key] = value.tolist()
+    # 递归函数处理NumPy类型
+    def convert_to_serializable(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.generic):
+            return obj.item()
+        elif isinstance(obj, (list, tuple)):
+            return [convert_to_serializable(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: convert_to_serializable(value) for key, value in obj.items()}
         else:
-            serializable_results[key] = value
+            return obj
+    
+    # 确保结果可序列化
+    serializable_results = convert_to_serializable(result_dict)
     
     with open(result_json, "w") as fjson:
         json.dump(serializable_results, fjson, indent=4)

@@ -32,6 +32,7 @@ def test_supcon(options, test_loader, label_counts, augmentation: dict):
         / str(options.gamma)
         / f"adttem_{options.adaptive_temperature}"
         / f"hnm_{options.hard_negative_mining}"
+        / str(options.negative_ratio)
         / f"center_{options.use_center_loss}"
         / f"weights_{options.use_class_weights}"
     )
